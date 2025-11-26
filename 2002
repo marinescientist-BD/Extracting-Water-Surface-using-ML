@@ -1,0 +1,655 @@
+// Load Landsat 7 imagery with cloud filter
+var landsat7 = ee.ImageCollection("LANDSAT/LE07/C02/T1_L2")
+  .filterDate('2002-11-01','2002-12-31')
+  .filterBounds(table)
+  .filter(ee.Filter.lt('CLOUD_COVER', 5))  // Added cloud filter < 5%
+  .median()
+  .clip(table);
+
+// Add Landsat 7 RGB layer
+Map.addLayer(landsat7, {
+  bands: ['SR_B3', 'SR_B2', 'SR_B1'],
+  min: 7000,
+  max: 15000
+}, 'Landsat 7 RGB SR');
+
+Map.centerObject(table);
+
+// False Color Composite (NIR, Red, Green) - Added before MNDWI
+var fcc = landsat7.select(['SR_B4', 'SR_B3', 'SR_B2']);
+Map.addLayer(fcc, {
+  min: 7000,
+  max: 15000
+}, 'False Color Composite');
+
+// Calculate MNDWI = (Green - SWIR1) / (Green + SWIR1)
+var mndwi = landsat7.normalizedDifference(['SR_B2', 'SR_B5']).clip(table);
+print('MNDWI:', mndwi);
+Map.addLayer(mndwi, {
+  min: -1,
+  max: 1,
+  palette: ['red', 'yellow', 'cyan', 'blue']
+}, 'MNDWI');
+
+// Create binary MNDWI: water if MNDWI > 0
+var mndwi_binary = mndwi.expression('b(0) > 0 ? 1 : 0').clip(table);
+Map.addLayer(mndwi_binary, {
+  min: 0,
+  max: 1,
+  palette: ['lightgray', 'blue']
+}, 'MNDWI Binary');
+
+// Calculate WRI = (Green + Red) / (NIR + SWIR)
+var wri = landsat7.expression(
+  '((G + R) / (N + S))', {
+    G: landsat7.select('SR_B2'),
+    R: landsat7.select('SR_B3'),
+    N: landsat7.select('SR_B4'),
+    S: landsat7.select('SR_B5')
+  }).clip(table);
+
+Map.addLayer(wri, {
+  min: 0.5,
+  max: 2.5,
+  palette: ['blue', 'white', 'green']
+}, 'WRI');
+
+// ============================================
+// TRAINING DATA - Add your points here
+// ============================================
+
+// Water points
+var water = ee.FeatureCollection([
+  ee.Feature(ee.Geometry.Point(92.187088, 23.182864), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.180274, 23.176443), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.190384, 23.160434), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.20295, 23.14356), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2267657, 23.0862487), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.228031, 22.871093), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.302839, 22.695404), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.210631, 22.552243), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.276595, 22.479399), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.332538, 22.482571), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.2084, 23.1291), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2136, 23.1291), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.21993, 23.13176), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.21444, 23.13034), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.21684, 23.11045), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.21676, 23.11376), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22487, 23.11878), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22414, 23.10315), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22439, 23.0853), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22425, 23.07604), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.23009, 22.99342), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2428, 23.00448), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.20143, 22.99026), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.23009, 23.00985), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.23645, 22.98694), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.20967, 22.98883), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2279, 22.8834), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.254, 22.8771), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2018, 22.915), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2334, 22.8967), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.2045, 22.8815), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2639, 22.8382), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2694, 22.8236), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2526, 22.7958), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2725, 22.7723), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2471, 22.7923), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2972, 22.7543), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.3113, 22.7505), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.32416, 22.76362), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.33429, 22.74257), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.33395, 22.74257), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.29309, 22.69851), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.29121, 22.69455), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.32914, 22.70168), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.33326, 22.70848), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.26237, 22.70975), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.24726, 22.71102), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.23799, 22.7012), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.23524, 22.6852), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22924, 22.69249), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.24503, 22.67729), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.072, 22.8704), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.0994, 22.8495), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1049, 22.8352), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.0994, 22.8065), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1307, 22.7906), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.0974, 22.8065), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.13, 22.8435), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1767, 22.7932), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1438, 22.768), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.1665, 22.7091), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1884, 22.6863), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1922, 22.7072), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1627, 22.7186), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.197, 22.6714), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2492, 22.6575), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2097, 22.5998), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1809, 22.6046), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2255, 22.5973), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2001, 22.6211), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.2046, 22.6277), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2037, 22.5466), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.258, 22.5339) , {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.237, 22.5124), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2192, 22.5339), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2085, 22.5745), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2044, 22.5983), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2085, 22.571), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2034, 22.5621), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.3256, 22.5288), {'class': 1}),
+   ee.Feature(ee.Geometry.Point(92.3321, 22.5), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2288, 22.4968), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2288, 22.4968), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.16002, 23.08239), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.15787, 23.07651), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.34309, 22.45815), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.34627, 22.45156), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.33485, 22.47147), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2403, 22.9046), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2259, 22.8189), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2867, 22.7866), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2524, 22.8413), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2463, 22.9245), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2435, 22.9482), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.22569, 22.9054), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.19891, 22.9307), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1686, 22.9553), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.3696, 22.6672), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.3497, 22.6672), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.366658, 22.612574), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.166, 22.7674), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1097, 22.7332), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.177, 22.8231), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.0893, 22.9423), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.1373, 22.9063), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.2954, 22.5782), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.3256, 22.5864), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.15456, 23.16266),{'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.122649, 22.977521), {'class': 1}),
+  ee.Feature(ee.Geometry.Point(92.130878, 22.977561), {'class': 1})
+]);
+
+// Non-water points
+var nonWater = ee.FeatureCollection([
+  ee.Feature(ee.Geometry.Point(92.190433, 23.185859), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1893583, 23.125279), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.189783, 23.057219), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.200737, 23.0193916), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.148461, 22.875466),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2446495, 22.7628884),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2941253, 22.5690458),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1956506, 22.5218743),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3424791, 22.4176766),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1965585, 22.5218938),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1665, 23.1633), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1782, 23.1652), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1865, 23.1087), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1683, 23.0999), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.2012, 23.1125),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1724, 23.1245),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1902, 23.1476) ,{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1435, 23.1043),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2455, 23.1059),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1844, 23.1722),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2458, 23.1002), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1185, 23.0299), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1264, 23.0024), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.2033, 23.0194), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1713, 23.063),{'class':0}),
+  ee.Feature(ee.Geometry.Point (92.1247, 23.0359),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2651, 23.0077),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1449, 23.0387),{'class':0}),
+  ee.Feature(ee.Geometry.Point (92.2067, 23.0592),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1724, 23.0409),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1858, 23.0501), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1947, 23.0817), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1017, 23.0021), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1858, 23.0242), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1542, 23.0829),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1126, 23.0539),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1607, 22.867),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.0508, 22.8813),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2596, 22.941),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2661, 22.9053),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1854, 22.868), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1525, 22.9521), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.0951, 22.8712), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.0938, 22.9354), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.0635, 22.9316),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1948, 22.8164),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2, 22.78),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2882, 22.8452),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1667, 22.8326),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2161, 22.8253),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.188, 22.8294), {'class': 0}),
+  ee.Feature(ee.Geometry.Point (92.0623, 22.8389), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3744, 22.7838), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3112, 22.8079), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3545, 22.7832),{'class':0}),
+  ee.Feature(ee.Geometry.Point (92.3363, 22.7977),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3421, 22.8003),{'class':0}),
+  ee.Feature(ee.Geometry.Point (92.3232, 22.8139),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3675, 22.7289),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.348, 22.7415),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3617, 22.7517), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3658, 22.7764), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3305, 22.778), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.316, 22.7757), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3521, 22.7738),{'class':0}),
+  ee.Feature(ee.Geometry.Point (92.2168, 22.7586),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2281, 22.7514),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2402, 22.7197),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2247, 22.7498),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2391, 22.7688),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1924, 22.7954), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.0956, 22.7235), {'class': 0}),
+  ee.Feature(ee.Geometry.Point (92.1866, 22.7368), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.2185, 22.7757), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.32164, 22.4346),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.32593, 22.45538),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2522, 22.6985),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2721, 22.6852),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2769, 22.6788),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3387, 22.6659),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3184, 22.6798), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.2882, 22.6639), {'class': 0}),
+  ee.Feature(ee.Geometry.Point (92.3157, 22.6516), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.1142, 22.6725), {'class': 0}),
+  ee.Feature(ee.Geometry.Point (92.1416, 22.6617),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1588, 22.6291) ,{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1197, 22.6779),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1327, 22.6969),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2594, 22.6348),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3765, 22.631),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.3765, 22.631), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3614, 22.6047), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.3668, 22.6307), {'class': 0}),
+  ee.Feature(ee.Geometry.Point (92.2869, 22.599), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.2628, 22.605),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2779, 22.5714),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.2487, 22.5917),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1571, 22.5559),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.1471, 22.5771),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.31186, 22.45189),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.16849, 22.99892), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.15871, 22.97917), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.077, 22.94519), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.15425, 22.91689), {'class': 0}),
+  ee.Feature(ee.Geometry.Point(92.06275, 22.89855),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.11597, 22.87245),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.11597, 22.87245),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.12438, 22.84572),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.09743, 22.78433),{'class':0}),
+  ee.Feature(ee.Geometry.Point(92.13777, 22.72987),{'class':0}),
+]);
+
+// Merge all samples
+var trainingSamples = water.merge(nonWater);
+
+Map.addLayer(water, {color: 'blue'}, 'Water Points');
+Map.addLayer(nonWater, {color: 'green'}, 'Non-Water Points');
+
+// Add random column for splitting
+var withRandom = trainingSamples.randomColumn('random');
+
+// Split into training (<0.7) and validation (>=0.7)
+var trainingSet = withRandom.filter(ee.Filter.lt('random', 0.7));
+var validationSet = withRandom.filter(ee.Filter.gte('random', 0.7));
+
+print('Training samples:', trainingSet.size());
+print('Validation samples:', validationSet.size());
+
+// Sample regions for training
+var training = landsat7.sampleRegions({
+  collection: trainingSet,
+  properties: ['class'],
+  scale: 30
+});
+print('Training sample:', training.limit(5));
+
+// Train Random Forest classifier
+var classifier = ee.Classifier.smileRandomForest(100).train({
+  features: training,
+  classProperty: 'class',
+  inputProperties: landsat7.bandNames()
+});
+
+// Classify the image
+var classified = landsat7.classify(classifier);
+Map.addLayer(classified, {
+  min: 0,
+  max: 1,
+  palette: ['green', 'blue']
+}, 'RF Classified');
+
+// ============================================
+// ACCURACY ASSESSMENT
+// ============================================
+
+// Sample the classified image at validation points
+var validated = classified.sampleRegions({
+  collection: validationSet,
+  properties: ['class'],
+  scale: 30
+});
+
+// Get confusion matrix
+var testAccuracy = validated.errorMatrix('class', 'classification');
+print('Confusion Matrix:', testAccuracy);
+print('Overall Accuracy:', testAccuracy.accuracy());
+print('Producer\'s Accuracy:', testAccuracy.producersAccuracy());
+print('User\'s Accuracy:', testAccuracy.consumersAccuracy());
+print('Kappa Coefficient:', testAccuracy.kappa());
+
+// ============================================
+// WATER AREA CALCULATION
+// ============================================
+
+// Select water pixels (class = 1)
+var waterPixels = classified.eq(1);
+
+// Calculate pixel area in m²
+var pixelArea = ee.Image.pixelArea();
+
+// Multiply by water mask to get water pixel areas
+var waterAreaImage = pixelArea.updateMask(waterPixels);
+
+// Sum all water pixel areas inside your 'table' region
+var waterAreaMeters = waterAreaImage.reduceRegion({
+  reducer: ee.Reducer.sum(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('area');
+
+// Convert m² to km²
+var waterAreaKm2 = ee.Number(waterAreaMeters).divide(1e6);
+
+print('Water area (km²):', waterAreaKm2);
+
+
+// Calculate non-water area
+var nonWaterPixels = classified.eq(0);
+var nonWaterAreaImage = pixelArea.updateMask(nonWaterPixels);
+var nonWaterAreaMeters = nonWaterAreaImage.reduceRegion({
+  reducer: ee.Reducer.sum(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('area');
+var nonWaterAreaKm2 = ee.Number(nonWaterAreaMeters).divide(1e6);
+
+print('Non-water area (km²):', nonWaterAreaKm2);
+
+
+
+
+
+
+// Export False Color Composite (3-band: NIR, Red, Green)
+Export.image.toDrive({
+  image: fcc,
+  description: 'FCC_2002',
+  folder: '2002',
+  region: table,
+  scale: 30,
+  crs: 'EPSG:32646',  // UTM Zone 46N
+  maxPixels: 1e13
+});
+
+// Export MNDWI Binary (single band: 0 and 1)
+Export.image.toDrive({
+  image: mndwi_binary,
+  description: 'MNDWI_Binary_2002',
+  folder: '2002',
+  region: table,
+  scale: 30,
+  crs: 'EPSG:32646',  // UTM Zone 46N
+  maxPixels: 1e13
+});
+
+// Export RF Classified (single band: 0=non-water, 1=water)
+Export.image.toDrive({
+  image: classified,
+  description: 'RF_Classified_2002',
+  folder: '2002',
+  region: table,
+  scale: 30,
+  crs: 'EPSG:32646',  // UTM Zone 46N
+  maxPixels: 1e13
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============================================
+// METADATA EXTRACTION
+// ============================================
+
+print('========== SATELLITE METADATA ==========');
+
+// 1. Number of images in composite
+var imageCollection = ee.ImageCollection("LANDSAT/LE07/C02/T1_L2")
+  .filterDate('2002-11-01','2002-12-31')
+  .filterBounds(table)
+  .filter(ee.Filter.lt('CLOUD_COVER', 5));  // Added cloud filter here too
+var imageCount = imageCollection.size();
+print('Number of images in composite:', imageCount);
+
+// 2. Average cloud coverage
+var cloudCoverage = imageCollection.aggregate_mean('CLOUD_COVER');
+print('Average cloud coverage (%):', cloudCoverage);
+
+// 3. Pixel counts for water and non-water
+var waterPixelCount = waterAreaImage.reduceRegion({
+  reducer: ee.Reducer.count(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('area');
+print('Water pixel count:', waterPixelCount);
+
+var nonWaterPixelCount = nonWaterAreaImage.reduceRegion({
+  reducer: ee.Reducer.count(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('area');
+print('Non-water pixel count:', nonWaterPixelCount);
+
+// 4. MNDWI mean values for water and non-water classes
+var mndwiWater = mndwi.updateMask(waterPixels);
+var mndwiNonWater = mndwi.updateMask(nonWaterPixels);
+
+var mndwiWaterMean = mndwiWater.reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('nd');
+print('MNDWI mean value (water):', mndwiWaterMean);
+
+var mndwiNonWaterMean = mndwiNonWater.reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+}).get('nd');
+print('MNDWI mean value (non-water):', mndwiNonWaterMean);
+
+// 5. Average pixel values (mean reflectance) for water and non-water
+var bandsToAnalyze = ['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7'];
+
+print('Average pixel values (water):');
+var waterReflectance = landsat7.select(bandsToAnalyze).updateMask(waterPixels).reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+});
+print(waterReflectance);
+
+print('Average pixel values (non-water):');
+var nonWaterReflectance = landsat7.select(bandsToAnalyze).updateMask(nonWaterPixels).reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: table,
+  scale: 30,
+  maxPixels: 1e9
+});
+print(nonWaterReflectance);
+
+// ============================================
+// GRAPHICAL VISUALIZATIONS FOR METHODOLOGY
+// ============================================
+
+// CHART 1: MNDWI Distribution Histogram
+print('========== MNDWI DISTRIBUTION ==========');
+
+// Sample MNDWI values for both classes
+var mndwiSamples = mndwi.addBands(classified.rename('class')).stratifiedSample({
+  numPoints: 500,
+  classBand: 'class',
+  region: table,
+  scale: 30,
+  geometries: true
+});
+
+// Create histogram chart
+var mndwiHistogram = ui.Chart.feature.groups({
+  features: mndwiSamples,
+  xProperty: 'nd',
+  yProperty: 'nd',
+  seriesProperty: 'class'
+})
+.setChartType('ScatterChart')
+.setOptions({
+  title: 'MNDWI Distribution: Water vs Non-Water',
+  hAxis: {
+    title: 'MNDWI Value',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  vAxis: {
+    title: 'Frequency',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  colors: ['green', 'blue'],
+  pointSize: 3,
+  series: {
+    0: {labelInLegend: 'Non-Water'},
+    1: {labelInLegend: 'Water'}
+  }
+});
+print(mndwiHistogram);
+
+// CHART 2: Spectral Signature Chart
+print('========== SPECTRAL SIGNATURES ==========');
+
+// Sample spectral values for both classes
+var spectralSamples = landsat7.select(bandsToAnalyze).addBands(classified.rename('class')).stratifiedSample({
+  numPoints: 100,
+  classBand: 'class',
+  region: table,
+  scale: 30,
+  geometries: true
+});
+
+// Calculate mean spectral values for each class
+var waterSpectral = spectralSamples.filter(ee.Filter.eq('class', 1));
+var nonWaterSpectral = spectralSamples.filter(ee.Filter.eq('class', 0));
+
+// Create data for line chart
+var wavelengths = ee.List(['Blue (B1)', 'Green (B2)', 'Red (B3)', 'NIR (B4)', 'SWIR1 (B5)', 'SWIR2 (B7)']);
+
+var waterMeans = ee.List([
+  waterReflectance.get('SR_B1'),
+  waterReflectance.get('SR_B2'),
+  waterReflectance.get('SR_B3'),
+  waterReflectance.get('SR_B4'),
+  waterReflectance.get('SR_B5'),
+  waterReflectance.get('SR_B7')
+]);
+
+var nonWaterMeans = ee.List([
+  nonWaterReflectance.get('SR_B1'),
+  nonWaterReflectance.get('SR_B2'),
+  nonWaterReflectance.get('SR_B3'),
+  nonWaterReflectance.get('SR_B4'),
+  nonWaterReflectance.get('SR_B5'),
+  nonWaterReflectance.get('SR_B7')
+]);
+
+// Create feature collection for chart
+var spectralData = ee.FeatureCollection([
+  ee.Feature(null, {
+    'band': 'Blue (B1)',
+    'Water': waterMeans.get(0),
+    'Non-Water': nonWaterMeans.get(0)
+  }),
+  ee.Feature(null, {
+    'band': 'Green (B2)',
+    'Water': waterMeans.get(1),
+    'Non-Water': nonWaterMeans.get(1)
+  }),
+  ee.Feature(null, {
+    'band': 'Red (B3)',
+    'Water': waterMeans.get(2),
+    'Non-Water': nonWaterMeans.get(2)
+  }),
+  ee.Feature(null, {
+    'band': 'NIR (B4)',
+    'Water': waterMeans.get(3),
+    'Non-Water': nonWaterMeans.get(3)
+  }),
+  ee.Feature(null, {
+    'band': 'SWIR1 (B5)',
+    'Water': waterMeans.get(4),
+    'Non-Water': nonWaterMeans.get(4)
+  }),
+  ee.Feature(null, {
+    'band': 'SWIR2 (B7)',
+    'Water': waterMeans.get(5),
+    'Non-Water': nonWaterMeans.get(5)
+  })
+]);
+
+var spectralChart = ui.Chart.feature.byFeature({
+  features: spectralData,
+  xProperty: 'band',
+  yProperties: ['Water', 'Non-Water']
+})
+.setChartType('LineChart')
+.setOptions({
+  title: 'Spectral Signature: Water vs Non-Water',
+  hAxis: {
+    title: 'Landsat 7 Bands',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  vAxis: {
+    title: 'Surface Reflectance',
+    titleTextStyle: {italic: false, bold: true}
+  },
+  colors: ['blue', 'green'],
+  lineWidth: 2,
+  pointSize: 5,
+  series: {
+    0: {labelInLegend: 'Water'},
+    1: {labelInLegend: 'Non-Water'}
+  }
+});
+print(spectralChart);
+
+print('========== METADATA EXTRACTION COMPLETE ==========');
+
